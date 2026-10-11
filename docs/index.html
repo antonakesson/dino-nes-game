@@ -100,6 +100,21 @@
     });
   });
 
+  // Pause while the tab is hidden. jsnes's frame timer otherwise runs every missed frame in a
+  // burst when the tab comes back (and audio underruns run frames while hidden), so the game
+  // plays on unseen. stop() forgets the last frame time, so start() resumes without catching up.
+  // _frameTimer / _speakers are jsnes 2.1.0 internals: recheck on upgrade.
+  document.addEventListener("visibilitychange", function () {
+    var timer = browser._frameTimer, audio = browser._speakers.audioCtx;
+    if (document.hidden) {
+      timer.stop();
+      if (audio && audio.state === "running") audio.suspend();
+    } else {
+      if (!timer.running) timer.start();
+      if (audio && audio.state === "suspended") audio.resume();
+    }
+  });
+
   jsnes.Browser.loadROMFromURL("dino.nes", function (err, data) {
     if (err) { console.error(err); return; }
     browser.loadROM(data);
