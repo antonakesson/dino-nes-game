@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dino NES</title>
+<meta name="description" content="The Chrome dino game as an NES ROM. Play it in the browser.">
+<style>
+  :root {
+    --bg: #f7f7f7; --fg: #222; --muted: #666; --line: #ddd; --key: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161616; --fg: #e8e8e8; --muted: #999; --line: #333; --key: #222; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--fg);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 768px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  #nes {
+    width: 100%; aspect-ratio: 256 / 240; background: #000;
+    image-rendering: pixelated; border-radius: 4px; overflow: hidden;
+  }
+  /* jsnes sizes the canvas once, in px; let it follow the box instead */
+  #nes canvas { display: block; width: 100% !important; height: 100% !important; image-rendering: pixelated; }
+  .pad { display: flex; gap: 12px; justify-content: center; margin: 16px 0 0; }
+  .pad button {
+    font: 600 1rem system-ui, sans-serif; color: var(--fg); background: var(--key);
+    border: 1px solid var(--line); border-radius: 999px; min-width: 64px; height: 64px;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .pad button.start { border-radius: 12px; min-width: 88px; }
+  @media (hover: hover) and (pointer: fine) { .pad { display: none; } }
+  table { border-collapse: collapse; margin: 24px 0 0; width: 100%; }
+  td { padding: 6px 12px 6px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  td:first-child { white-space: nowrap; }
+  kbd {
+    font: 0.85rem ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 4px; padding: 1px 6px; background: var(--key);
+  }
+  footer { margin-top: 32px; color: var(--muted); font-size: 0.9rem; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Dino NES</h1>
+  <p class="sub">The Chrome dino game as an NES ROM, running in the browser.</p>
+
+  <div id="nes"></div>
+
+  <div class="pad" aria-label="Touch controls">
+    <button class="start" data-btn="START">Start</button>
+    <button data-btn="B">B</button>
+    <button data-btn="A">A</button>
+  </div>
+
+  <table>
+    <tr><td><kbd>Enter</kbd></td><td>Start a game</td></tr>
+    <tr><td><kbd>Space</kbd> <kbd>X</kbd> <kbd>↑</kbd></td><td>A: jump. Hold for a higher jump, let go early for a short hop. Restarts after a crash.</td></tr>
+    <tr><td><kbd>Z</kbd> <kbd>Shift</kbd></td><td>B: jetpack, in the air, while the fuel lasts. Fuel refills on the ground.</td></tr>
+    <tr><td>Snakes</td><td>Bite from the side. Land on one to bounce off it for +50.</td></tr>
+  </table>
+  <p class="sub">A gamepad works too.</p>
+
+  <footer>
+    <a href="dino.nes" download>Download dino.nes</a> ·
+    <a href="https://github.com/antonakesson/dino-nes-game">Source</a> ·
+    Emulator: <a href="https://github.com/bfirsh/jsnes">jsnes</a>
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/jsnes@2.1.0/dist/jsnes.min.js"></script>
+<script>
+  var C = jsnes.Controller;
+  var browser = new jsnes.Browser({
+    container: document.getElementById("nes"),
+    onError: function (e) { console.error(e); },
+  });
+
+  // Our own key map (not saved to localStorage, unlike browser.keyboard.setKeys).
+  browser.keyboard.keys = {
+    13: [1, C.BUTTON_START, "Enter"],
+    32: [1, C.BUTTON_A, "Space"],
+    88: [1, C.BUTTON_A, "X"],
+    38: [1, C.BUTTON_A, "Up"],
+    90: [1, C.BUTTON_B, "Z"],
+    89: [1, C.BUTTON_B, "Y"],
+    16: [1, C.BUTTON_B, "Shift"],
+  };
+
+  document.querySelectorAll(".pad button").forEach(function (b) {
+    var btn = C["BUTTON_" + b.dataset.btn];
+    b.addEventListener("pointerdown", function (e) { e.preventDefault(); browser.nes.buttonDown(1, btn); });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (t) {
+      b.addEventListener(t, function () { browser.nes.buttonUp(1, btn); });
+    });
+  });
+
+  jsnes.Browser.loadROMFromURL("dino.nes", function (err, data) {
+    if (err) { console.error(err); return; }
+    browser.loadROM(data);
+  });
+</script>
+</body>
+</html>
