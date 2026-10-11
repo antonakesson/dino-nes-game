@@ -1,4 +1,4 @@
-# Build dino.nes from source and publish it with docs/ to GitHub Pages.
+# Build dino.nes (and the page data) from source and publish it with docs/ to GitHub Pages.
 name: Pages
 
 on:
@@ -23,7 +23,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - run: dotnet fsi Dino.fsx
+      # NES_TRACE=1: also record which F# line put each byte; Site.fsx turns that into docs/data.js.
+      # --tailcalls- keeps every caller on the stack (a snippet's last call would drop its frame).
+      - run: NES_TRACE=1 dotnet fsi --tailcalls- Dino.fsx
+      - run: dotnet fsi Site.fsx
       - run: |
           mkdir site
           cp -r docs/. site/

@@ -1,0 +1,38 @@
+/* tokens: an editor-dark palette, with a light variant */
+:root {
+  --bg: #0f1115; --panel: #151821; --panel-2: #1b1f2a; --line: #262b38; --fg: #d7dae0; --muted: #7d8494;
+  --dim: #4a5060; --accent: #ffb454; --accent-2: #59c2ff; --sel: rgba(89, 194, 255, .13); --hot: #ff6a3d;
+  --t-kw: #c792ea; --t-mn: #ffb454; --t-mode: #f78c6c; --t-num: #f78c6c; --t-str: #c3e88d; --t-com: #5c6577; --t-id: #d7dae0;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f5f1; --panel: #ffffff; --panel-2: #f0eee8; --line: #e2dfd6; --fg: #23252b; --muted: #6c7080;
+    --dim: #b0b3bd; --accent: #c26a00; --accent-2: #0b6bcb; --sel: rgba(11, 107, 203, .09); --hot: #e0461b;
+    --t-kw: #8a3fb8; --t-mn: #b35c00; --t-mode: #c2410c; --t-num: #c2410c; --t-str: #4d7c0f; --t-com: #9a9eab; --t-id: #23252b;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f6f5f1; --panel: #ffffff; --panel-2: #f0eee8; --line: #e2dfd6; --fg: #23252b; --muted: #6c7080;
+  --dim: #b0b3bd; --accent: #c26a00; --accent-2: #0b6bcb; --sel: rgba(11, 107, 203, .09); --hot: #e0461b;
+  --t-kw: #8a3fb8; --t-mn: #b35c00; --t-mode: #c2410c; --t-num: #c2410c; --t-str: #4d7c0f; --t-com: #9a9eab; --t-id: #23252b;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 var(--sans); }
+a { color: inherit; }
+.t-kw { color: var(--t-kw); } .t-mn { color: var(--t-mn); font-weight: 600; } .t-mode { color: var(--t-mode); }
+.t-num { color: var(--t-num); } .t-str { color: var(--t-str); } .t-com { color: var(--t-com); font-style: italic; }
+.t-id { color: var(--t-id); }
+.nes { width: 100%; aspect-ratio: 256 / 240; background: #000; border-radius: 6px; overflow: hidden; }
+.nes canvas { display: block; width: 100% !important; height: 100% !important; image-rendering: pixelated; }
+kbd { font: 12px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px;
+  padding: 0 5px; background: var(--panel-2); color: var(--fg); }
+.pad { display: flex; gap: 10px; justify-content: center; }
+.pad button { font: 600 14px var(--sans); color: var(--fg); background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 999px; width: 56px; height: 56px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.pad button.wide { border-radius: 10px; width: 80px; }
+@media (hover: hover) and (pointer: fine) { .pad { display: none; } }

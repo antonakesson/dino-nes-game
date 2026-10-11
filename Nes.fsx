@@ -14,6 +14,10 @@
 //
 // You still write the opcode byte yourself; the helpers only decide how the
 // operand after it is resolved (literal, absolute, zero page, branch offset).
+//
+// NES_TRACE=1 also records, for every `put`, the .fsx call stack that put it, and `write`
+// saves it as <rom>.trace (for the web page's source view). The ROM bytes are the same.
+// Run with `dotnet fsi --tailcalls-`, or a snippet's last call drops the snippet's own frame.
 
 open System.IO
 open System.Collections.Generic
@@ -86,21 +90,37 @@ type Writer =
       Used: HashSet<Label>                       // equates referenced, for the symbol files
       Fixups: ResizeArray<Fixup>
       Called: HashSet<Label>                     // subroutines called so far
-      Pending: Queue<Label * (unit -> unit)> }   // ... whose bodies are not put yet
+      Pending: Queue<Label * (unit -> unit)>     // ... whose bodies are not put yet
+      Trace: ResizeArray<string> }               // NES_TRACE=1: "offset length file:line;..." per put
 
 let private newWriter () =
     { Out = ResizeArray(); Org = None
       Placed = Dictionary(HashIdentity.Reference); NextZp = 0
       Used = HashSet(HashIdentity.Reference); Fixups = ResizeArray()
-      Called = HashSet(HashIdentity.Reference); Pending = Queue() }
+      Called = HashSet(HashIdentity.Reference); Pending = Queue(); Trace = ResizeArray() }
 
 let mutable private w = newWriter ()
 
 /// Start a new ROM; everything `put` from here on goes into it.
 let startRom () = w <- newWriter ()
 
+let private tracing = System.Environment.GetEnvironmentVariable "NES_TRACE" = "1"
+
+/// .fsx frames of the current call stack, innermost first: "Dino.fsx:256;Std.fsx:374;..."
+let private callStack () =
+    System.Diagnostics.StackTrace(true).GetFrames()
+    |> Seq.choose (fun f ->
+        match f.GetFileName() with
+        | null -> None
+        | file when file.EndsWith ".fsx" && Path.GetFileName file <> "Nes.fsx" ->
+            Some (sprintf "%s:%d" (Path.GetFileName file) (f.GetFileLineNumber()))
+        | _ -> None)
+    |> String.concat ";"
+
 /// Append bytes to the file.
-let put (b: byte[]) = w.Out.AddRange b
+let put (b: byte[]) =
+    if tracing && b.Length > 0 then w.Trace.Add(sprintf "%d %d %s" w.Out.Count b.Length (callStack ()))
+    w.Out.AddRange b
 
 /// File offset of the next byte.
 let offset () = w.Out.Count
@@ -274,7 +294,8 @@ type Symbol = { Name: string; Addr: int; IsCode: bool }
 
 type Image =
     { Bytes: byte[]
-      Symbols: Symbol list }          // every label placed or used, sorted by address
+      Symbols: Symbol list            // every label placed or used, sorted by address
+      Trace: string list }            // NES_TRACE=1 only, see `put`
 
 /// Backpatch the forward references and check the file against its iNES header.
 let finishRom () : Image =
@@ -306,7 +327,7 @@ let finishRom () : Image =
               Addr = a
               IsCode = (l.Kind = Code) } ]
         |> List.sortBy (fun s -> s.Addr)
-    { Bytes = out; Symbols = symbols }
+    { Bytes = out; Symbols = symbols; Trace = List.ofSeq w.Trace }
 
 // ---------------------------------------------------------------- output
 
@@ -318,6 +339,8 @@ let write (path: string) (img: Image) =
     let nl pick = [ for s in img.Symbols do if pick s then yield sprintf "$%04X#%s#" s.Addr s.Name ]
     File.WriteAllLines(path + ".0.nl",   nl (fun s -> s.IsCode))
     File.WriteAllLines(path + ".ram.nl", nl (fun s -> not s.IsCode && s.Addr < 0x8000))
+    if not img.Trace.IsEmpty then File.WriteAllLines(path + ".trace", img.Trace)
+    else File.Delete(path + ".trace")       // a trace from an older build would not match
 
     printfn "wrote %s (%d bytes)" path img.Bytes.Length
     for s in img.Symbols do

@@ -4,6 +4,7 @@ output/
 
 # built by CI (.github/workflows/pages.yml)
 docs/dino.nes
+docs/data.js
 
 # internal, local only
 CLAUDE.md

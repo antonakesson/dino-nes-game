@@ -4,121 +4,324 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dino NES</title>
-<meta name="description" content="The Chrome dino game as an NES ROM. Play it in the browser.">
+<meta name="description" content="The Chrome dino game as an NES ROM, written byte by byte from an F# script. Play it in the browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
 <style>
-  :root {
-    --bg: #f7f7f7; --fg: #222; --muted: #666; --line: #ddd; --key: #fff;
+  body { font-size: 17px; line-height: 1.6; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .top { display: flex; justify-content: space-between; padding: 18px 0; font: 13px var(--mono); color: var(--muted); }
+  /* hero */
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; padding: 32px 0 40px; }
+  .eyebrow { font: 600 12px var(--mono); color: var(--accent); letter-spacing: .1em; text-transform: uppercase; }
+  h1 { font-size: clamp(34px, 5vw, 56px); line-height: 1.04; letter-spacing: -.03em; margin: 12px 0 20px; font-weight: 800; }
+  .lede { color: var(--muted); font-size: 19px; margin: 0 0 24px; max-width: 34em; }
+  .lede b { color: var(--fg); font-weight: 600; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 14px; }
+  .cta a { text-decoration: none; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); }
+  .cta a.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+  .screen { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; box-shadow: 0 30px 80px -40px rgba(0,0,0,.6); }
+  .screen .keys { font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; padding: 12px 4px 0; }
+  .screen .pad { margin-top: 12px; }
+  /* inside the cartridge */
+  .rom { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 16px 18px 18px; }
+  .romhead { display: flex; justify-content: space-between; font: 12px var(--mono); color: var(--muted); margin-bottom: 10px; }
+  .romhead b { color: var(--fg); }
+  .strip { display: flex; gap: 3px; }
+  .seg { all: unset; box-sizing: border-box; cursor: pointer; min-width: 0; height: 64px; padding: 9px 10px; border-radius: 6px; position: relative;
+    display: flex; flex-direction: column; justify-content: space-between; color: #0b0d12; overflow: hidden; transition: transform .15s, box-shadow .15s; }
+  .seg:hover { transform: translateY(-2px); }
+  .seg[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg); }
+  .seg .nm { font: 700 13px var(--sans); white-space: nowrap; }
+  .seg .sz { font: 11px var(--mono); opacity: .75; white-space: nowrap; }
+  .seg.hdr { background: #59c2ff; } .seg.code { background: #ffb454; } .seg.data { background: #c3e88d; }
+  .seg.free { background: repeating-linear-gradient(135deg, var(--panel-2) 0 5px, var(--bg) 5px 10px); color: var(--muted); border: 1px dashed var(--line); }
+  .seg.vec { background: #c792ea; } .seg.chr { background: #aab3c5; }
+  .seg .heat { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 6px; }
+  .toscale { display: flex; height: 4px; margin-top: 10px; border-radius: 2px; overflow: hidden; }
+  .toscale i { display: block; } .toscale .hdr { background: #59c2ff; } .toscale .code { background: #ffb454; } .toscale .data { background: #c3e88d; }
+  .toscale .free { background: var(--line); } .toscale .vec { background: #c792ea; } .toscale .chr { background: #aab3c5; }
+  .toscale-cap { font: 10px var(--mono); color: var(--dim); text-align: right; margin-top: 2px; }
+  .rdetail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; margin-top: 14px; min-height: 190px; }
+  .rdetail h3 { margin: 0 0 6px; font-size: 18px; } .rdetail h3 span { font: 12px var(--mono); color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .rdetail p { margin: 0 0 12px; color: var(--muted); font-size: 15px; } .rdetail p code { font: 13px var(--mono); color: var(--fg); }
+  .rdetail p b.hot { color: var(--hot); }
+  .rlines .cap { font: 600 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 4px; }
+  .rlines .fs { font: 12.5px/20px var(--mono); white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+  .rlines .n { color: var(--dim); display: inline-block; width: 34px; }
+  .rr { font: 12.5px/20px var(--mono); }
+  .rr .hrow { display: grid; grid-template-columns: max-content 1fr; gap: 16px; }
+  .rr .hrows { display: grid; grid-template-columns: max-content 1fr; gap: 0 16px; } .rr .hrows .hrow { display: contents; } .rr .by { color: var(--accent-2); } .rr .hrow span:last-child { color: var(--muted); }
+  .rr .hrow b { color: var(--fg); }
+  .subbar { display: flex; gap: 1px; height: 18px; border-radius: 3px; overflow: hidden; }
+  .subbar i { background: #ffb454; opacity: .55; } .subbar i:nth-child(2n) { opacity: .8; } .subbar i:first-child { opacity: 1; } .subbar i:hover { opacity: 1; background: var(--fg); }
+  .subcap { font: 11px var(--mono); color: var(--dim); margin: 4px 0 12px; }
+  .rr canvas.heat { width: 100%; height: 56px; border-radius: 3px; display: block; }
+  .ditem { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; } .ditem .lab { width: 96px; color: var(--muted); flex: none; font-size: 11.5px; white-space: nowrap; }
+  .pal { display: flex; gap: 2px; } .pal { flex-wrap: wrap; max-width: 260px; } .pal i { width: 9px; height: 16px; border-radius: 2px; } .pal s { width: 5px; }
+  .txt { display: flex; gap: 1px; } .txt canvas, .txt .sp { width: 16px; height: 16px; image-rendering: pixelated; display: block; }
+  .chrgrid { display: grid; grid-template-columns: repeat(auto-fill, 26px); gap: 3px; }
+  .chrgrid canvas { width: 26px; height: 26px; image-rendering: pixelated; background: var(--panel-2); border-radius: 3px; }
+  .big { font: 700 34px var(--sans); letter-spacing: -.02em; } .big span { font-size: 15px; color: var(--muted); font-weight: 400; }
+  section { padding: 80px 0 0; }
+  h2 { font-size: 32px; letter-spacing: -.02em; margin: 0 0 10px; line-height: 1.15; }
+  .sub { color: var(--muted); max-width: 40em; margin: 0 0 32px; }
+  /* one line, three views */
+  .steps { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .steps button { font: 500 14px var(--sans); color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+  .steps button[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+  .trio { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); }
+  .pane h3 { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; }
+  .pane h3 span { margin-left: auto; letter-spacing: 0; text-transform: none; color: var(--dim); }
+  .pane + .pane { border-left: 1px solid var(--line); background: var(--bg); }
+  .codebox { font: 13px/21px var(--mono); padding: 12px 0; overflow-x: auto; min-height: 260px; }
+  .codebox div { white-space: pre; padding: 0 16px; }
+  .codebox .n { color: var(--dim); display: inline-block; width: 36px; user-select: none; }
+  .codebox .f { background: var(--sel); box-shadow: inset 3px 0 var(--accent-2); }
+  .codebox .faint { opacity: .45; }
+  .asm { font: 13px/21px var(--mono); padding: 12px 0; }
+  .asm div { display: grid; grid-template-columns: 56px 84px 1fr; padding: 0 16px; white-space: pre; }
+  .asm .a { color: var(--muted); } .asm .by { color: var(--accent-2); } .asm b { color: var(--t-mn); font-weight: 600; }
+  .asm .l { color: var(--t-kw); display: block; }
+  .asm .tiles { display: flex; gap: 10px; padding: 8px 16px 4px; align-items: center; color: var(--muted); }
+  .asm .tiles canvas { width: 48px; height: 48px; image-rendering: pixelated; background: var(--panel-2); border-radius: 4px; }
+  .note { padding: 16px 18px; border-top: 1px solid var(--line); grid-column: 1 / -1; font-size: 15px; color: var(--muted); }
+  .note b { color: var(--fg); }
+  /* where the assembler went */
+  .pipes { display: grid; gap: 14px; margin-bottom: 36px; }
+  .pipe { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font: 13px var(--mono); }
+  .pipe .lab { width: 120px; color: var(--muted); font-family: var(--sans); font-size: 14px; }
+  .pipe .box { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 7px 12px; }
+  .pipe .tool { border-style: dashed; color: var(--muted); }
+  .pipe .arr { color: var(--dim); }
+  .pipe.us .box { border-color: var(--accent); }
+  .pipe.us .box.run { background: var(--accent); color: var(--bg); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th { text-align: left; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 0 16px 10px 0; }
+  td { padding: 12px 16px 12px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  td:first-child { color: var(--muted); width: 22%; }
+  td code { font: 13px var(--mono); color: var(--fg); background: var(--panel-2); padding: 1px 6px; border-radius: 4px; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .cards div { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 20px; }
+  .cards h4 { margin: 0 0 6px; font-size: 16px; }
+  .cards p { margin: 0; color: var(--muted); font-size: 15px; }
+  pre.term { font: 13px/20px var(--mono); background: #0b0d12; color: #c9ced8; border-radius: 10px; padding: 16px 18px; overflow-x: auto; margin: 0; }
+  pre.term .ok { color: #8bd5a0; } pre.term .dim { color: #5c6577; }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .pane-lite { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
+  .pane-lite .cap { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .pane-lite .term { border-radius: 0; }
+  .codebox.small { min-height: 0; font-size: 12.5px; }
+  .small-note { color: var(--muted); font-size: 14px; margin: 0; padding: 14px 16px; }
+  .sub code, .cards code { font: 13px var(--mono); color: var(--fg); }
+  .lede code { font: 16px var(--mono); color: var(--fg); }
+  footer { padding: 80px 0 48px; color: var(--muted); font-size: 14px; }
+  @media (max-width: 860px) {
+    .hero, .trio { grid-template-columns: 1fr; }
+    .pane + .pane { border-left: 0; border-top: 1px solid var(--line); }
+    .rdetail { grid-template-columns: 1fr; }
+    .seg { height: 54px; padding: 6px; } .seg .sz { display: none; } .seg .nm { font-size: 11px; }
+    .romhead span:last-child { display: none; }
+    .cards, .two { grid-template-columns: 1fr; }
+    .pipe .lab { width: 100%; }
   }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #161616; --fg: #e8e8e8; --muted: #999; --line: #333; --key: #222; }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--fg);
-    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  main { max-width: 768px; margin: 0 auto; }
-  h1 { font-size: 1.5rem; margin: 0 0 4px; }
-  .sub { color: var(--muted); margin: 0 0 20px; }
-  #nes {
-    width: 100%; aspect-ratio: 256 / 240; background: #000;
-    image-rendering: pixelated; border-radius: 4px; overflow: hidden;
-  }
-  /* jsnes sizes the canvas once, in px; let it follow the box instead */
-  #nes canvas { display: block; width: 100% !important; height: 100% !important; image-rendering: pixelated; }
-  .pad { display: flex; gap: 12px; justify-content: center; margin: 16px 0 0; }
-  .pad button {
-    font: 600 1rem system-ui, sans-serif; color: var(--fg); background: var(--key);
-    border: 1px solid var(--line); border-radius: 999px; min-width: 64px; height: 64px;
-    touch-action: none; user-select: none; -webkit-user-select: none;
-  }
-  .pad button.start { border-radius: 12px; min-width: 88px; }
-  @media (hover: hover) and (pointer: fine) { .pad { display: none; } }
-  table { border-collapse: collapse; margin: 24px 0 0; width: 100%; }
-  td { padding: 6px 12px 6px 0; border-top: 1px solid var(--line); vertical-align: top; }
-  td:first-child { white-space: nowrap; }
-  kbd {
-    font: 0.85rem ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px;
-    border-radius: 4px; padding: 1px 6px; background: var(--key);
-  }
-  footer { margin-top: 32px; color: var(--muted); font-size: 0.9rem; }
-  a { color: inherit; }
 </style>
 </head>
 <body>
-<main>
-  <h1>Dino NES</h1>
-  <p class="sub">The Chrome dino game as an NES ROM, running in the browser.</p>
+<div class="wrap">
+  <div class="top"><span>dino.nes</span><a href="https://github.com/antonakesson/dino-nes-game">github.com/antonakesson/dino-nes-game</a></div>
 
-  <div id="nes"></div>
-
-  <div class="pad" aria-label="Touch controls">
-    <button class="start" data-btn="START">Start</button>
-    <button data-btn="B">B</button>
-    <button data-btn="A">A</button>
+  <div class="hero">
+    <div>
+      <div class="eyebrow">NES · 6502 · NROM cartridge</div>
+      <h1>Hand-crafting an NES ROM in F#</h1>
+      <p class="lede">This is the Chrome dinosaur game, rebuilt for the NES. An F# script writes the ROM byte by byte: 6502 instructions and larger snippets are F# functions that append bytes to an array, and running the script saves that array as <code>dino.nes</code>. The build has no assembler and no linker.</p>
+      <div class="cta"><a href="https://github.com/antonakesson/dino-nes-game">Source on GitHub</a><a href="dino.nes" download>Download dino.nes</a></div>
+    </div>
+    <div class="screen">
+      <div class="nes" id="nes"></div>
+      <div class="pad"><button class="wide" data-btn="START">Start</button><button data-btn="B">B</button><button data-btn="A">A</button></div>
+      <div class="keys"><span><kbd>Enter</kbd> start</span><span><kbd>Space</kbd> jump, hold for higher</span><span><kbd>Z</kbd> jetpack in the air</span><span>gamepad works too</span></div>
+    </div>
   </div>
 
-  <table>
-    <tr><td><kbd>Enter</kbd></td><td>Start a game</td></tr>
-    <tr><td><kbd>Space</kbd> <kbd>X</kbd> <kbd>↑</kbd></td><td>A: jump. Hold for a higher jump, let go early for a short hop. Restarts after a crash.</td></tr>
-    <tr><td><kbd>Z</kbd> <kbd>Shift</kbd></td><td>B: jetpack, in the air, while the fuel lasts. Fuel refills on the ground.</td></tr>
-    <tr><td>Snakes</td><td>Bite from the side. Land on one to bounce off it for +50.</td></tr>
-  </table>
-  <p class="sub">A gamepad works too.</p>
+  <div class="rom" id="rom"></div>
 
-  <footer>
-    <a href="dino.nes" download>Download dino.nes</a> ·
-    <a href="https://github.com/antonakesson/dino-nes-game">Source</a> ·
-    Emulator: <a href="https://github.com/bfirsh/jsnes">jsnes</a>
-  </footer>
-</main>
+  <section id="how">
+    <h2>Named snippets over byte arrays</h2>
+    <p class="sub">A snippet is an F# function that appends bytes. Its name says what the bytes do, and its doc comment says which registers it changes. The game is mostly calls to snippets: <code>jump ()</code>, <code>fall ()</code>, <code>checkHits ()</code>. Inside each one, every byte is still chosen by hand. The examples below come from the real build. The script was run with a tracer that recorded which line put each byte.</p>
+    <div class="steps" id="steps"></div>
+    <div class="trio">
+      <div class="pane"><h3>Dino.fsx <span id="where"></span></h3><div class="codebox" id="codebox"></div></div>
+      <div class="pane"><h3>dino.nes <span id="bwhere"></span></h3><div class="asm" id="asm"></div></div>
+      <div class="note" id="note"></div>
+    </div>
+  </section>
 
+  <section>
+    <h2>Checks while the ROM is built</h2>
+    <p class="sub">The build is a normal F# program, so it can print, compute and assert as it writes bytes. Snippets check their own arguments, and the game script checks its tuning. A failed check stops the build with a message, before any ROM is written.</p>
+    <div class="two">
+      <div class="pane-lite"><div class="cap">Dino.fsx and Std.fsx</div><div class="codebox small" id="asserts"></div></div>
+      <div class="pane-lite"><div class="cap">Build output</div><pre class="term"><span class="dim">$</span> dotnet fsi Dino.fsx
+NMI handler: 121 bytes
+code + data end at $C947, 14003 bytes free before the vectors
+wrote output/dino.nes (24592 bytes)</pre>
+      <p class="small-note">The library also fails the build on its own: a branch that can't reach its label, a zero-page operand above $FF, an addressing mode the instruction doesn't have, or a file that doesn't match its iNES header.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Checks on the result</h2>
+    <p class="sub">The bytes aren't checked by reading them. They're checked by running them. Each snippet is a short, fixed byte sequence with known inputs and outputs, so it could also be checked formally: a superoptimizer can search every shorter sequence for one that does the same thing. This project doesn't do that yet.</p>
+    <div class="cards">
+      <div><h4>In an emulator</h4><p>After each build, FCEUX runs the ROM headless with a Lua script. The script plays the game and compares it to a model written in Lua: jump heights, air time, jetpack fuel, stomps, and the score on screen.</p></div>
+      <div><h4>In a debugger</h4><p>The build writes FCEUX symbol files next to the ROM, so the debugger shows <code>fall</code> and <code>dino_vy</code> instead of bare addresses.</p></div>
+      <div><h4>Across refactors</h4><p>A cleanup of the F# should leave the ROM unchanged, so the check is that its SHA-1 stays the same. <code>sizeOf</code> measures what a snippet costs in bytes before you pick between inlining it and making it a subroutine.</p></div>
+    </div>
+    <pre class="term" style="margin-top:16px"><span class="dim">$</span> fceux64 -lua dino.lua dino.nes; head output/dino.txt
+<span class="ok">PASS</span>
+  boot       state=0 y=176 on_ground=1 score=4
+  jump A x1  peak y=166 (model 166), 14 frames in the air (model 14)
+  jump A x4  peak y=152 (model 152), 21 frames in the air (model 21)
+  jump A x8  peak y=139 (model 139), 28 frames in the air (model 28)
+  jump A x12 peak y=135 (model 135), 31 frames in the air (model 31)
+  hold A     120 frames: 1 takeoff(s)
+  fuel       64, meter tiles 51 51 51 51, FUEL label true
+  jet A x1  B x20  peak y=128 (model 128), 42 frames in the air (model 42), fuel 64 -> 45 (model 45)</pre>
+  </section>
+
+  <section>
+    <h2>What replaces the assembler and linker</h2>
+    <p class="sub">An assembler provides labels, macros and expressions, and a linker places the result in memory. Here each of those is ordinary F#.</p>
+    <div class="pipes">
+      <div class="pipe"><span class="lab">Usual build</span><span class="box">game.asm</span><span class="arr">→</span><span class="box tool">assembler</span><span class="arr">→</span><span class="box">game.o</span><span class="arr">→</span><span class="box tool">linker + config</span><span class="arr">→</span><span class="box">game.nes</span></div>
+      <div class="pipe us"><span class="lab">This build</span><span class="box">Dino.fsx</span><span class="arr">→</span><span class="box run">dotnet fsi Dino.fsx</span><span class="arr">→</span><span class="box">dino.nes</span><span class="arr" style="margin-left:6px">+ symbol files</span></div>
+    </div>
+    <table>
+      <tr><th>Feature</th><th>In this build</th></tr>
+      <tr><td>Instructions</td><td>A function per mnemonic. <code>LDA (Imm 0x40)</code> appends <code>A9 40</code>. An addressing mode the 6502 doesn't have for that instruction fails the build.</td></tr>
+      <tr><td>Labels</td><td>F# values: <code>let loop = here "loop"</code>, then <code>BNE loop</code>. Labels compare by identity, so two with the same name don't clash.</td></tr>
+      <tr><td>Macros</td><td>Functions. <code>whenPressed 1 Button.A (fun () -> …)</code> takes the guarded code as an argument.</td></tr>
+      <tr><td>Expressions, constants</td><td>F# evaluated at build time: <code>jumpSpeed = -5.5</code> becomes the 8.8 fixed-point bytes <code>$80 $FA</code>.</td></tr>
+      <tr><td>Graphics</td><td>Tiles are drawn as lists of strings, and a short function converts them to CHR bit planes.</td></tr>
+      <tr><td>Layout</td><td><code>org</code> sets the address. A jump to a label not placed yet gets a placeholder, and <code>finishRom</code> fills it in at the end. A subroutine's body is put once, and only if something calls it.</td></tr>
+    </table>
+  </section>
+
+  <footer>The emulator on this page is <a href="https://github.com/bfirsh/jsnes">jsnes</a>. Any language that can append to a byte array could do the same. F# works well for it because snippets are just functions, labels are values, and build-time code runs in the same script.</footer>
+</div>
+
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script src="rommap.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsnes@2.1.0/dist/jsnes.min.js"></script>
 <script>
-  var C = jsnes.Controller;
-  var browser = new jsnes.Browser({
-    container: document.getElementById("nes"),
-    onError: function (e) { console.error(e); },
-  });
+(function () {
+  var L = R.src["Dino.fsx"], hex = R.hex;
+  function find(re) { return L.findIndex(function (t) { return re.test(t); }) + 1; }
 
-  // Our own key map (not saved to localStorage, unlike browser.keyboard.setKeys).
-  browser.keyboard.keys = {
-    13: [1, C.BUTTON_START, "Enter"],
-    32: [1, C.BUTTON_A, "Space"],
-    88: [1, C.BUTTON_A, "X"],
-    38: [1, C.BUTTON_A, "Up"],
-    90: [1, C.BUTTON_B, "Z"],
-    89: [1, C.BUTTON_B, "Y"],
-    16: [1, C.BUTTON_B, "Shift"],
-  };
+  var mapFrame = R.romMap(document.getElementById("rom"));
 
-  document.querySelectorAll(".pad button").forEach(function (b) {
-    var btn = C["BUTTON_" + b.dataset.btn];
-    b.addEventListener("pointerdown", function (e) { e.preventDefault(); browser.nes.buttonDown(1, btn); });
-    ["pointerup", "pointercancel", "pointerleave"].forEach(function (t) {
-      b.addEventListener(t, function () { browser.nes.buttonUp(1, btn); });
+  // real build-time checks and prints, pulled from the sources
+  (function () {
+    var picks = [["Dino.fsx", /^let kindBits/], ["Dino.fsx", /^if snakeOdds <> 2/], ["Dino.fsx", /^if int groundY - snakeFeetY/], null,
+      ["Std.fsx", /failwithf "putSprite/], ["Std.fsx", /failwithf "sfix %g/], null,
+      ["Dino.fsx", /^printfn "NMI handler/], ["Dino.fsx", /^printfn "code \+ data end/]];
+    document.getElementById("asserts").innerHTML = picks.map(function (p) {
+      if (!p) return "<div> </div>";
+      var src = R.src[p[0]], n = src.findIndex(function (t) { return p[1].test(t); }) + 1;
+      if (!n) return "";
+      return '<div><span class="n">' + n + "</span>" + R.highlight(src[n - 1].trim()) + "</div>";
+    }).join("");
+  })();
+
+  function asmRows(es, max) {
+    var html = "";
+    R.runs(es).forEach(function (run) {
+      var data = !R.isCode(run);
+      R.disasm(run.off, Math.min(run.end, run.off + (max || 400)), data).forEach(function (d) {
+        html += '<div><span class="a">' + (d.addr >= 0 ? "$" + hex(d.addr, 4) : "+" + hex(d.off, 4)) + '</span><span class="by">' +
+          d.bytes.map(function (b) { return hex(b, 2); }).join(" ") + "</span><span><b>" + d.m + "</b> " + R.esc(d.arg) + "</span></div>";
+      });
     });
-  });
+    return html;
+  }
+  var tileShades = ["transparent", "#8a8f9c", "#c6cad3", "#ffffff"];
 
-  // Pause while the tab is hidden. jsnes's frame timer otherwise runs every missed frame in a
-  // burst when the tab comes back (and audio underruns run frames while hidden), so the game
-  // plays on unseen. stop() forgets the last frame time, so start() resumes without catching up.
-  // _frameTimer / _speakers are jsnes 2.1.0 internals: recheck on upgrade.
-  document.addEventListener("visibilitychange", function () {
-    var timer = browser._frameTimer, audio = browser._speakers.audioCtx;
-    if (document.hidden) {
-      timer.stop();
-      if (audio && audio.state === "running") audio.suspend();
+  var steps = [
+    { name: "A constant", from: find(/^let jumpSpeed/), to: find(/^let jumpSpeed/), focus: find(/setSFix dinoVy jumpSpeed/), ctx: 0,
+      note: "<b>jumpSpeed = -5.5</b> is a float. <code>setSFix</code> turns it into signed 8.8 fixed point at build time ($FA80) and stores it in the two bytes of <code>dino_vy</code>. The conversion is plain F# that runs before the bytes are written." },
+    { name: "Control flow", from: find(/^let jump \(\) =/), to: find(/^let jump \(\) =/) + 4, focus: find(/whenPressed 1 Button.A \(fun/),
+      note: "<b>whenPressed</b> is a function that takes the guarded code as a lambda. It puts the test, a branch to a fresh label, calls the lambda, then places the label. The branch offset is known once the body's bytes exist." },
+    { name: "A subroutine", from: find(/^let play =/), to: find(/^let play =/) + 9, focus: find(/^        fall \(\)/), body: "fall",
+      note: "<b>fall ()</b> looks like any snippet call. Because <code>fall</code> was made with <code>subroutine</code>, the call site puts a 3-byte <code>jsr</code>, and the body is put once, later, by <code>emitSubroutines ()</code>. Changing between inline and subroutine is a one-word edit." },
+    { name: "Graphics", from: find(/^let dinoBody/), to: find(/^let dinoBody/) + 13, focus: 0, tiles: [1, 2, 3, 4],
+      note: "<b>The sprites are ASCII art.</b> <code>tile</code> reads 8 strings and writes the NES's two bit planes, 16 bytes per tile. The CHR bank is these tiles, in list order: tile numbers are positions in an F# list." },
+    { name: "The header", from: find(/^startRom \(\)/), to: find(/^org 0xC000/), focus: find(/inesHeader 0 1 1/), header: true,
+      note: "<b>The file starts with 16 bytes</b> that tell an emulator what cartridge this is: one 16 KB PRG bank, one 8 KB CHR bank, mapper 0. Then <code>org 0xC000</code> says where the next byte lives in the CPU's address space. Together with <code>padTo</code> and <code>vectors</code>, that's all the memory layout there is." }
+  ];
+
+  var stepsEl = document.getElementById("steps");
+  stepsEl.innerHTML = steps.map(function (s, i) { return '<button data-i="' + i + '">' + s.name + "</button>"; }).join("");
+  stepsEl.addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) show(+b.dataset.i); });
+
+  function show(i) {
+    var s = steps[i];
+    stepsEl.querySelectorAll("button").forEach(function (b, k) { b.setAttribute("aria-pressed", k === i); });
+    var from = s.from, to = s.to;
+    if (s.focus && (s.focus < from || s.focus > to)) {   // show the focus line in its own context
+      var lines = [];
+      for (var n = from; n <= to; n++) lines.push(n);
+      lines.push(-1);
+      for (var m = s.focus - 3; m <= s.focus + 1; m++) lines.push(m);
+    } else { var lines = []; for (var n2 = from; n2 <= to; n2++) lines.push(n2); }
+    document.getElementById("codebox").innerHTML = lines.map(function (n) {
+      if (n < 0) return '<div class="faint"><span class="n"></span><span class="t-com">// …</span></div>';
+      var cls = n === s.focus ? "f" : "";
+      return '<div class="' + cls + '"><span class="n">' + n + "</span>" + (R.highlight(L[n - 1]) || " ") + "</div>";
+    }).join("");
+    document.getElementById("where").textContent = s.focus ? "line " + s.focus : "lines " + from + "–" + to;
+    var asm = document.getElementById("asm"), es;
+    if (s.header) {
+      var f = [[0, 4, "magic: \"NES\" + $1A"], [4, 1, "PRG banks × 16 KB"], [5, 1, "CHR banks × 8 KB"], [6, 1, "mapper 0, horizontal mirroring"], [7, 1, "flags 7"], [8, 8, "unused"]];
+      asm.innerHTML = f.map(function (x) {
+        return '<div style="grid-template-columns:56px 200px 1fr"><span class="a">+' + hex(x[0], 4) + '</span><span class="by">' +
+          Array.from(R.rom.slice(x[0], x[0] + x[1])).map(function (b) { return hex(b, 2); }).join(" ") + "</span><span style='color:var(--muted)'>" + x[2] + "</span></div>";
+      }).join("");
+      document.getElementById("bwhere").textContent = "16 bytes";
+    } else if (s.tiles) {
+      var html = "";
+      s.tiles.forEach(function (t) {
+        var o = R.CHR + t * 16, b = Array.from(R.rom.slice(o, o + 16)).map(function (x) { return hex(x, 2); });
+        html += '<div class="tiles"><canvas data-t="' + t + '"></canvas><span style="font-size:12px;line-height:18px">tile ' + t +
+          ' · +' + hex(o, 5) + '<br><span class="by" style="color:var(--accent-2)">' + b.slice(0, 8).join(" ") + "</span> <span style='color:var(--dim)'>bits 0</span><br>" +
+          '<span class="by" style="color:var(--accent-2)">' + b.slice(8).join(" ") + "</span> <span style='color:var(--dim)'>bits 1</span></span></div>";
+      });
+      asm.innerHTML = html;
+      asm.querySelectorAll("canvas[data-t]").forEach(function (c) { c.replaceWith(R.tileCanvas(+c.dataset.t, 6, tileShades)); });
+      document.getElementById("bwhere").textContent = "CHR, +" + hex(R.CHR + 16, 5);
     } else {
-      if (!timer.running) timer.start();
-      if (audio && audio.state === "suspended") audio.resume();
+      es = R.entriesThrough(s.focus);
+      asm.innerHTML = asmRows(es);
+      if (s.body) {
+        var at = R.codeSyms.find(function (x) { return x[1] === s.body; }), o = R.offOf(at[0]), list = [];
+        for (var k = 0; k < 6; k++) { var d = R.decode(o); list.push(d); o += d.len; }
+        asm.innerHTML += '<div style="display:block;color:var(--dim);padding:10px 16px 2px">… elsewhere, put once by emitSubroutines ():</div><span class="l">' + s.body + ":</span>" +
+          list.map(function (d) { return '<div><span class="a">$' + hex(d.addr, 4) + '</span><span class="by">' + d.bytes.map(function (b) { return hex(b, 2); }).join(" ") + "</span><span><b>" + d.m + "</b> " + R.esc(d.arg) + "</span></div>"; }).join("") +
+          '<div style="display:block;color:var(--dim)">…</div>';
+      }
+      var n0 = es.reduce(function (t, e) { return t + e.len; }, 0);
+      document.getElementById("bwhere").textContent = n0 + " bytes";
     }
-  });
+    document.getElementById("note").innerHTML = s.note;
+  }
+  show(0);
 
-  jsnes.Browser.loadROMFromURL("dino.nes", function (err, data) {
-    if (err) { console.error(err); return; }
-    browser.loadROM(data);
-  });
+  R.startNes(document.getElementById("nes"), mapFrame);
+  R.bindPad(document);
+})();
 </script>
 </body>
 </html>
