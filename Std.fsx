@@ -589,18 +589,15 @@ let drawDigits (d: Digits) row col (digit0: int) =
 
 // ---- random
 
-/// a <- next pseudo-random byte (16-bit Galois LFSR, feedback $39, period 65535).
-/// `seed` must never be 0: set it once at reset. Clobbers x; leaves a = seed.Lo.
-let random8 (seed: U16) =
-    LDX (Imm 8)
-    LDA (Zp seed.Lo)
-    let loop = here "random"
-    let noFeedback = label "random_no_feedback"
+/// rnd <- (rnd rotated left + frames.Lo) xor frames.Hi xor player's pad: call once a frame.
+/// Mask the bits you need (AND #3: 1 in 4); two values on the same frame take disjoint bits.
+/// The add, not a xor, keeps it from being a plain function of frames.Lo (256 runs, lopsided).
+/// Any value is fine, 0 included. Leaves a = rnd; clobbers C.
+let stirRandom (rnd: U8) (frames: U16) player =
+    LDA (Zp rnd.Addr)
     ASL Acc
-    ROL (Zp seed.Hi)
-    BCC noFeedback
-    EOR (Imm 0x39)
-    place noFeedback
-    DEX ()
-    BNE loop
-    STA (Zp seed.Lo)
+    ADC (Imm 0)                     // bit 7 back into bit 0; C clear (at most $FE + 1)
+    ADC (Zp frames.Lo)
+    EOR (Zp frames.Hi)
+    EOR (Zp (pads + (player - 1)))
+    STA (Zp rnd.Addr)

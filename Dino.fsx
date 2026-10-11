@@ -166,6 +166,9 @@ let startSpeed, speedUp, topSpeed = -2.0, -0.125, -4.0     // obstacle px/frame;
 let spawnX = 240.0
 let minGap = 40                     // frames between obstacles: minGap + random 0..63
 let snakeOdds = 4                   // 1 obstacle in snakeOdds is a snake (a power of 2)
+// a spawn reads both from one random byte: the gap from bits 0-5, the kind from the top bits
+let kindBits = (snakeOdds - 1) <<< 6
+if snakeOdds <> 2 && snakeOdds <> 4 then failwith "snakeOdds: 2 or 4 (the bits above the gap's 0..63)"
 let bounceSpeed = -5.0              // landing on a snake: like a jump, a bit lower
 let bounceBonus = 50
 let fuelMax = 64                    // frames of thrust in a full tank
@@ -206,7 +209,7 @@ let speedTick = zpU8 "speed_tick"
 let spawnTimer = zpU8 "spawn_timer"
 let scoreTick = zpU8 "score_tick"
 let score    = zpDigits "score" 5
-let seed     = zpU16 "seed"
+let rnd      = zpU8 "rnd"           // stirred every frame: frames, pad 1
 let frames   = zpU16 "frames"
 let rattle   = zpU8 "rattle"        // the snakes' top-right tile this frame
 let fuel     = zpU8 "fuel"          // 0..fuelMax
@@ -230,7 +233,7 @@ let fuelData = label "fuel_text"
 
 // ---------------------------------------------------------------- snippets
 
-/// Everything back to the start of a run (the random seed keeps going). Clobbers a, x.
+/// Everything back to the start of a run (rnd keeps going). Clobbers a, x.
 let newGame =
     subroutine "new_game" (fun () ->
         set8 state 0
@@ -310,15 +313,15 @@ let spawnObstacles =
         BEQ ready
         RTS ()
         place ready
-        random8 seed
+        LDA (Zp rnd.Addr)
         AND (Imm 63)
         CLC ()
         ADC (Imm minGap)
         STA (Zp spawnTimer.Addr)
         let kindPicked = label "kind_picked"
-        random8 seed
         LDX (Imm kindCactus)
-        AND (Imm (snakeOdds - 1))
+        LDA (Zp rnd.Addr)
+        AND (Imm kindBits)
         BNE kindPicked
         LDX (Imm kindSnake)
         place kindPicked                // x = kind
@@ -563,12 +566,12 @@ hideAllSprites ()
 waitVblank ()
 waitVblank ()
 loadPalette paletteData
-set16 seed 0x1234
 showTitle ()
 
 let mainLoop = here "main_loop"
 waitForNmi ()
 readPad1 ()
+stirRandom rnd frames 1
 let game, dead, draw = label "game", label "dead", label "draw"
 LDA (Zp screen.Addr)
 BNE game
