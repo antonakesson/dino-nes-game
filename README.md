@@ -20,4 +20,4 @@ Snakes bite from the side. Land on one to bounce off it for +50. A gamepad works
 dotnet fsi Dino.fsx      # writes output/dino.nes
 ```
 
-Copy `output/dino.nes` to `docs/` to update the web page.
+Every push to `main` builds the ROM the same way and publishes it with `docs/` to GitHub Pages.
