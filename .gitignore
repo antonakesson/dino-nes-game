@@ -1,0 +1,8 @@
+output/
+*.cdl
+*.deb
+
+# internal, local only
+CLAUDE.md
+FINDINGS.md
+.vscode/
